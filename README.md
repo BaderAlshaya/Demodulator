@@ -6,3 +6,5 @@ The program is implemented using Python. It offers the ability to encode and dec
 
 # Team Members:
 - Bader Alshaya
+- Patrick Wulfe
+- Steven Lee
