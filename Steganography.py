@@ -4,7 +4,7 @@ import struct as st
 import math as mt
 import scipy
 import numpy as np
-#from .audiolab import audiolab
+#import audiolab
 
 
 def get_first_frequency(seedno):
