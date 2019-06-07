@@ -1,25 +1,30 @@
 import sys
 import wave as wav
 import struct as st
-import numpy as np
 import math as mt
-import audiolab
 import scipy
+import numpy as np
+#from .audiolab import audiolab
 
+
+def get_first_frequency(seedno):
+    np.random.seed(seedno)
+    if seedno > 7500:
+        return np.random.randint(25001, 30000)
+    return np.random.randint(20000, 25000)
 
 def get_next_frequency(seedno):
     np.random.seed(seedno)
-    if seedno > 7500:
-        return np.random.randint(7501, 15000)
-    return np.random.randint(1500, 7500)
-
+    if seedno > 25000:
+        return np.random.randint(25001, 30000)
+    return np.random.randint(20000, 25000)
 
 print("Please choose one of the following options:")
 print("1. Encode text into audio file.")
 print("2. Decode text from audio file.")
 print("3. Hide endoded message in another audio file.")
 choice = int(input("Your choice: "))
-print("------------------")
+print("-----------------")
 
 
 ###### Encode text message ######
@@ -28,21 +33,58 @@ if choice == 1:
   # These will be recalculated after each window for cryptographic security
   seed_mark_int = int(input("Enter the key for the mark frequencies (value between 7501 and 15000): "))
   seed_space_int = int(input("Enter the key for the space frequencies (value between 1500 and 7500): "))
+  #Translates message from ascii to a binary list
+  def message_to_bin(msg):
+      out = []
+      for i in msg:
+          byte = []
+          inInt= ord(i)
+          top = 128
+          byte.append(0)
+          while top > 1:
+              if (inInt/top) >= 1:
+                  byte.append(1)
+                  inInt -= top
+              else:
+                  byte.append(0)
+              top = top/2
+          byte.append(int(inInt))
+          byte.append(1)
+          for i in byte[-1::-1]:
+              out.append(i)
+      return out
+  #turns current byte into a sine wave and writes it to the file
+  def write_sine(bit, myFile, mark_freq, space_freq):
+      sine_wave = []
+      if bit == 1:
+          sine_wave = [np.sin(2 * np.pi * float(mark_freq) * i / 48000) for i in range(160)]
+      else:
+          sine_wave = [np.sin(2 * np.pi * float(space_freq) * i / 48000) for i in range(160)]
+      for i in sine_wave:
+          myFile.writeframes(st.pack("h", int(i*pow(2, 14))))
 
-  ##### For Steven, these will be the frequencies use for the first window
-  mark_freq = get_next_frequency(seed_mark_int)
-  space_freq = get_next_frequency(seed_space_int)
+  #creates a .wav file and the calls write_sine() to fill it
+  def build_a_wav(filename):
+      wavefile = wav.open(filename, 'wb')
+      wavefile.setnchannels(1)
+      wavefile.setsampwidth(2)
+      wavefile.setframerate(48000)
+      wavefile.setnframes(sizeof)
+      wavefile.setcomptype('NONE', 'nocompression')
+      mark_freq = get_first_frequency(seed_mark_int)
+      space_freq = get_first_frequency(seed_space_int)
+      for i in bits:
+          write_sine(i, wavefile, mark_freq, space_freq)
+          mark_freq = get_next_frequency(mark_freq)
+          space_freq = get_next_frequency(space_freq)
+      wavefile.close()
 
-  ##### Use this for each following window
-  mark_freq = get_next_frequency(mark_freq)
-  space_freq = get_next_frequency(space_freq)
-
-  ##### Since we are using seeds in a PRNG, it will always come up with the same sequence of numbers and can only be decrypted if you know the seed numbers
-
-
-
-
-
+  filename = str(input("Please input a name for your file (include .wav)"))
+  bits = message_to_bin(message_str)
+  sizeof = len(bits)*160
+  build_a_wav(filename)
+  print("Built your encoded wav file: " +filename+".wav")
+  
 
 ###### Decode text message ######
 elif choice == 2:
@@ -54,8 +96,8 @@ elif choice == 2:
   wav_frames = wav_file.getnframes()  # Get total number of frames.
   frame_rate = wav_file.getframerate()  # Frame rate.
   sample_size = int(frame_rate/300)  # Frames sample size.
-  mark_freq = seed_mark_int  # Mark frequency.
-  space_freq = seed_space_int  # Space frequency.
+  mark_freq = get_first_frequency(seed_mark_int) # Mark frequency. (updated for crypto)
+  space_freq = get_first_frequency(seed_space_int) # Space frequency. (updated for crypto)
 
   print(sample_size)
   print("rate: ", frame_rate)
@@ -79,7 +121,7 @@ elif choice == 2:
       return abs(normalize * np.dot(sample, coef))
 
   # Get the FSK bits
-  def get_FSK():
+  def get_FSK(mark_freq, space_freq):
       bits = []
       # Iterate through the frames by sample size (160 frames/sample)
       for i in range(0, len(wav_floats), sample_size):
@@ -87,9 +129,12 @@ elif choice == 2:
           curr_sample = wav_floats[i: i + sample_size]
 
           # Get the mark/space size
-          mark_size = filter(curr_sample, get_next_frequency(mark_freq))
-          space_size = filter(curr_sample, get_next_frequency(space_freq))
-
+          mark_size = filter(curr_sample, mark_freq)
+          space_size = filter(curr_sample, space_freq)
+		
+          #Update mark and space Frequency
+          mark_freq = get_next_frequency(mark_freq)
+          space_freq = get_next_frequency(space_freq)
           # Comapre the mark/space size
           if(mark_size > space_size):
               bits.append(1)
@@ -108,7 +153,7 @@ elif choice == 2:
       return message
 
 
-  print(get_message(get_FSK()))  # Print the hidden message
+  print(get_message(get_FSK(mark_freq, space_freq)))  # Print the hidden message
 
 
 elif choice == 3:
@@ -122,4 +167,5 @@ elif choice == 3:
 
 else:
   print("Your input is not correct!")
-  sys.exit()
+
+sys.exit()
